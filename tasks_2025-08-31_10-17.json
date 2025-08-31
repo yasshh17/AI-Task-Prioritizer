@@ -1,0 +1,52 @@
+{
+  "prioritized_tasks": [
+    {
+      "task": "wake at 5:00 AM",
+      "priority": "High",
+      "reason": "This is the most critical task to achieve the main goal",
+      "done": false
+    },
+    {
+      "task": "book cab in around 5:45 AM",
+      "priority": "High",
+      "reason": "Need to book cab to reach airport on time",
+      "done": false
+    },
+    {
+      "task": "Reach airport by 6:00 AM",
+      "priority": "High",
+      "reason": "Need to arrive at the airport before check-in and security",
+      "done": false
+    },
+    {
+      "task": "Check in quickly",
+      "priority": "High",
+      "reason": "Need to check in before flight departure",
+      "done": false
+    },
+    {
+      "task": "check if all the bag are packed",
+      "priority": "Medium",
+      "reason": "Should be done before booking cab to avoid last-minute rush",
+      "done": false
+    },
+    {
+      "task": "Eat something quickly in 10 minutes",
+      "priority": "Low",
+      "reason": "Can be done after waking up and before booking cab",
+      "done": true
+    },
+    {
+      "task": "Fresh up in about 15 minutes",
+      "priority": "Low",
+      "reason": "Can be done after waking up and before eating",
+      "done": true
+    },
+    {
+      "task": "All set",
+      "priority": "Low",
+      "reason": "This is a confirmation task, not a specific action to be taken",
+      "done": true
+    }
+  ]
+}
