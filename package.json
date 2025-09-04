@@ -1,0 +1,12 @@
+{
+  "name": "ai-task-prioritizer",
+  "version": "1.0.0",
+  "description": "AI-powered task prioritization web application",
+  "main": "index.html",
+  "scripts": {
+    "dev": "uvicorn backend.main:app --reload"
+  },
+  "keywords": ["ai", "productivity", "task-management", "fastapi", "groq"],
+  "author": "Yash",
+  "license": "MIT"
+}

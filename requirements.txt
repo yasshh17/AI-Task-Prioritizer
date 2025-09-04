@@ -1,3 +1,7 @@
-groq
+# Core dependencies
 python-dotenv
+groq
 rich
+
+# Optional but useful
+requests
