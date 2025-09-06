@@ -141,6 +141,12 @@
             transform: translateY(-1px);
         }
 
+        .btn-secondary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .btn-small {
             padding: 8px 16px;
             font-size: 14px;
@@ -153,6 +159,12 @@
 
         .btn-success:hover {
             background: #059669;
+        }
+
+        .btn-success:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #10b981;
         }
 
         .task-list {
@@ -294,6 +306,15 @@
             border-left: 4px solid #10b981;
         }
 
+        .info {
+            background: #e0f2fe;
+            color: #075985;
+            padding: 16px;
+            border-radius: 12px;
+            margin: 20px 0;
+            border-left: 4px solid #0284c7;
+        }
+
         .stats {
             display: flex;
             gap: 20px;
@@ -385,7 +406,7 @@
                     <button type="button" class="btn btn-primary" onclick="prioritizeTasks()">
                         🤖 Prioritize with AI
                     </button>
-                    <button type="button" class="btn btn-secondary" onclick="loadPreviousSession()">
+                    <button type="button" class="btn btn-secondary" onclick="showStorageInfo()" disabled title="Storage features require database integration">
                         📂 Load Last Session
                     </button>
                 </div>
@@ -433,9 +454,13 @@
                 </table>
 
                 <div style="margin-top: 20px;">
-                    <button type="button" class="btn btn-success" onclick="saveTasks()">
+                    <button type="button" class="btn btn-success" onclick="showStorageInfo()" disabled title="Storage features require database integration">
                         💾 Save Progress
                     </button>
+                    <p style="margin-top: 10px; color: #6b7280; font-size: 0.9rem;">
+                        Note: Task completion status is tracked locally in this session only. 
+                        Save/load features require database integration for persistence.
+                    </p>
                 </div>
             </div>
         </div>
@@ -502,7 +527,8 @@
             showLoading(true);
             
             try {
-                const response = await fetch(`${API_BASE}/api/prioritize`, {
+                // Updated to use just /api endpoint for Vercel serverless function
+                const response = await fetch(`${API_BASE}/api`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -511,46 +537,38 @@
                 });
 
                 if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.detail || 'Failed to prioritize tasks');
+                    let errorMessage = 'Failed to prioritize tasks';
+                    try {
+                        const error = await response.json();
+                        errorMessage = error.detail || error.error || errorMessage;
+                    } catch (e) {
+                        // If response isn't JSON, use default error message
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 const result = await response.json();
-                currentTasks = result.prioritized_tasks;
+                currentTasks = result.prioritized_tasks || [];
+                
+                // Ensure all tasks have the done property
+                currentTasks = currentTasks.map(task => ({
+                    ...task,
+                    done: task.done || false
+                }));
+                
                 displayResults(currentTasks);
                 showMessage('Tasks prioritized successfully!', 'success');
                 
             } catch (error) {
+                console.error('Error:', error);
                 showMessage(`Error: ${error.message}`);
             } finally {
                 showLoading(false);
             }
         }
 
-        async function loadPreviousSession() {
-            showLoading(true);
-            
-            try {
-                const response = await fetch(`${API_BASE}/api/load`);
-                
-                if (!response.ok) {
-                    if (response.status === 404) {
-                        throw new Error('No previous session found');
-                    }
-                    const error = await response.json();
-                    throw new Error(error.detail || 'Failed to load session');
-                }
-
-                const result = await response.json();
-                currentTasks = result.prioritized_tasks;
-                displayResults(currentTasks);
-                showMessage('Previous session loaded successfully!', 'success');
-                
-            } catch (error) {
-                showMessage(`Error: ${error.message}`);
-            } finally {
-                showLoading(false);
-            }
+        function showStorageInfo() {
+            showMessage('Save/load features require database integration for Vercel deployment. Tasks are tracked locally in this session only.', 'info');
         }
 
         function displayResults(tasks) {
@@ -596,58 +614,15 @@
             document.getElementById('progress-percentage').textContent = `${percentage}%`;
         }
 
-        async function toggleTaskStatus(index) {
-            const task = currentTasks[index];
-            const newStatus = !task.done;
+        function toggleTaskStatus(index) {
+            // Toggle task status locally (won't persist without database)
+            currentTasks[index].done = !currentTasks[index].done;
+            displayResults(currentTasks);
             
-            try {
-                const response = await fetch(`${API_BASE}/api/tasks/${index}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ task_index: index, done: newStatus })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.detail || 'Failed to update task');
-                }
-
-                // Update local state
-                currentTasks[index].done = newStatus;
-                displayResults(currentTasks);
-                
-            } catch (error) {
-                showMessage(`Error updating task: ${error.message}`);
-            }
-        }
-
-        async function saveTasks() {
-            if (currentTasks.length === 0) {
-                showMessage('No tasks to save.');
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE}/api/save`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ prioritized_tasks: currentTasks })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.detail || 'Failed to save tasks');
-                }
-
-                const result = await response.json();
-                showMessage('Tasks saved successfully!', 'success');
-                
-            } catch (error) {
-                showMessage(`Error saving tasks: ${error.message}`);
+            // Show info about local-only changes
+            if (!window.localStorageInfoShown) {
+                showMessage('Task status updated locally. Changes will be lost on page refresh without database integration.', 'info');
+                window.localStorageInfoShown = true;
             }
         }
 
