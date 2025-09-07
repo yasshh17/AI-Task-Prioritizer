@@ -406,7 +406,7 @@
                     <button type="button" class="btn btn-primary" onclick="prioritizeTasks()">
                         🤖 Prioritize with AI
                     </button>
-                    <button type="button" class="btn btn-secondary" onclick="showStorageInfo()" disabled title="Storage features require database integration">
+                    <button type="button" class="btn btn-secondary" onclick="loadLastSession()">
                         📂 Load Last Session
                     </button>
                 </div>
@@ -454,12 +454,11 @@
                 </table>
 
                 <div style="margin-top: 20px;">
-                    <button type="button" class="btn btn-success" onclick="showStorageInfo()" disabled title="Storage features require database integration">
+                    <button type="button" class="btn btn-success" onclick="saveTasks()">
                         💾 Save Progress
                     </button>
                     <p style="margin-top: 10px; color: #6b7280; font-size: 0.9rem;">
-                        Note: Task completion status is tracked locally in this session only. 
-                        Save/load features require database integration for persistence.
+                        Your tasks are automatically saved to your browser's local storage.
                     </p>
                 </div>
             </div>
@@ -469,6 +468,7 @@
     <script>
         const API_BASE = window.location.origin;
         let currentTasks = [];
+        let currentGoal = '';
 
         function showMessage(message, type = 'error') {
             const messagesDiv = document.getElementById('messages');
@@ -549,6 +549,7 @@
 
                 const result = await response.json();
                 currentTasks = result.prioritized_tasks || [];
+                currentGoal = data.goal;
                 
                 // Ensure all tasks have the done property
                 currentTasks = currentTasks.map(task => ({
@@ -557,7 +558,8 @@
                 }));
                 
                 displayResults(currentTasks);
-                showMessage('Tasks prioritized successfully!', 'success');
+                saveTasks(); // Auto-save after prioritization
+                showMessage('Tasks prioritized and saved successfully!', 'success');
                 
             } catch (error) {
                 console.error('Error:', error);
@@ -567,8 +569,102 @@
             }
         }
 
-        function showStorageInfo() {
-            showMessage('Save/load features require database integration for Vercel deployment. Tasks are tracked locally in this session only.', 'info');
+        function saveTasks() {
+            if (currentTasks.length === 0) {
+                showMessage('No tasks to save.');
+                return;
+            }
+
+            try {
+                const dataToSave = {
+                    goal: currentGoal || document.getElementById('goal').value.trim(),
+                    tasks: currentTasks,
+                    savedAt: new Date().toISOString()
+                };
+                
+                localStorage.setItem('ai_task_prioritizer_session', JSON.stringify(dataToSave));
+                showMessage('Tasks saved successfully!', 'success');
+            } catch (error) {
+                console.error('Error saving to localStorage:', error);
+                showMessage('Failed to save tasks locally. Your browser may not support local storage.', 'error');
+            }
+        }
+
+        function loadLastSession() {
+            try {
+                const savedData = localStorage.getItem('ai_task_prioritizer_session');
+                
+                if (!savedData) {
+                    showMessage('No saved session found. Prioritize some tasks first!', 'info');
+                    return;
+                }
+
+                const data = JSON.parse(savedData);
+                currentTasks = data.tasks || [];
+                currentGoal = data.goal || '';
+                
+                // Restore the goal to the input field
+                if (currentGoal) {
+                    document.getElementById('goal').value = currentGoal;
+                }
+                
+                // Restore task inputs (optional - you can remove this if you just want to show results)
+                const taskContainer = document.getElementById('task-inputs');
+                taskContainer.innerHTML = '';
+                
+                // Add one input for each non-completed task
+                const incompleteTasks = currentTasks.filter(t => !t.done);
+                if (incompleteTasks.length > 0) {
+                    incompleteTasks.forEach(task => {
+                        const div = document.createElement('div');
+                        div.className = 'task-input-container';
+                        div.innerHTML = `
+                            <input type="text" class="task-input" value="${task.task}" placeholder="Enter a task...">
+                            <button type="button" class="btn btn-secondary btn-small" onclick="removeTask(this)">Remove</button>
+                        `;
+                        taskContainer.appendChild(div);
+                    });
+                } else {
+                    // Add at least one empty input
+                    addTaskInput();
+                }
+                
+                displayResults(currentTasks);
+                
+                const savedDate = new Date(data.savedAt);
+                const timeAgo = getTimeAgo(savedDate);
+                showMessage(`Session loaded from ${timeAgo}`, 'success');
+                
+            } catch (error) {
+                console.error('Error loading session:', error);
+                showMessage('Failed to load saved session. The data may be corrupted.', 'error');
+            }
+        }
+
+        function getTimeAgo(date) {
+            const seconds = Math.floor((new Date() - date) / 1000);
+            
+            let interval = Math.floor(seconds / 31536000);
+            if (interval > 1) return interval + " years ago";
+            if (interval === 1) return "1 year ago";
+            
+            interval = Math.floor(seconds / 2592000);
+            if (interval > 1) return interval + " months ago";
+            if (interval === 1) return "1 month ago";
+            
+            interval = Math.floor(seconds / 86400);
+            if (interval > 1) return interval + " days ago";
+            if (interval === 1) return "1 day ago";
+            
+            interval = Math.floor(seconds / 3600);
+            if (interval > 1) return interval + " hours ago";
+            if (interval === 1) return "1 hour ago";
+            
+            interval = Math.floor(seconds / 60);
+            if (interval > 1) return interval + " minutes ago";
+            if (interval === 1) return "1 minute ago";
+            
+            return "just now";
         }
 
         function displayResults(tasks) {
@@ -615,19 +711,32 @@
         }
 
         function toggleTaskStatus(index) {
-            // Toggle task status locally (won't persist without database)
+            // Toggle task status
             currentTasks[index].done = !currentTasks[index].done;
             displayResults(currentTasks);
-            
-            // Show info about local-only changes
-            if (!window.localStorageInfoShown) {
-                showMessage('Task status updated locally. Changes will be lost on page refresh without database integration.', 'info');
-                window.localStorageInfoShown = true;
-            }
+            saveTasks(); // Auto-save when status changes
         }
 
-        // Initialize with one task input
+        // Check for saved session on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // Check if there's a saved session
+            const savedData = localStorage.getItem('ai_task_prioritizer_session');
+            if (savedData) {
+                try {
+                    const data = JSON.parse(savedData);
+                    const savedDate = new Date(data.savedAt);
+                    const timeAgo = getTimeAgo(savedDate);
+                    
+                    // Show a subtle notification that there's a saved session
+                    const loadButton = document.querySelector('button[onclick="loadLastSession()"]');
+                    if (loadButton) {
+                        loadButton.innerHTML = `📂 Load Last Session (${timeAgo})`;
+                    }
+                } catch (e) {
+                    // Ignore parsing errors
+                }
+            }
+            
             // Add enter key support for inputs
             document.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter' && e.target.classList.contains('task-input')) {
@@ -645,4 +754,4 @@
         });
     </script>
 </body>
-</html><!-- Cache bust: timestamp -->
+</html><!-- Version: 2.0 -->
